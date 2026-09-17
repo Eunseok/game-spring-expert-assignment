@@ -18,7 +18,7 @@ public class RecentChatQueryService {
         if (!worlds.existsById(worldId)) {
             throw new NotFoundException("WORLD_NOT_FOUND");
         }
-        int capped = Math.min(Math.max(limit, 1), 100);
+        int capped = Math.clamp(limit, 1, 100);
         List<ChatMessageResponse> cached = cache.read(worldId, capped);
         if (cached != null) {
             return cached;
