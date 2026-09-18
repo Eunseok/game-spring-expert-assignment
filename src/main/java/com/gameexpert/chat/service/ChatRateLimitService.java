@@ -1,30 +1,29 @@
 package com.gameexpert.chat.service;
 
-import java.time.Duration;
-
+import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
 
-import lombok.RequiredArgsConstructor;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class ChatRateLimitService {
 
+    private final RedisScript<Long> rateLimitScript =
+            RedisScript.of(new ClassPathResource("scripts/rate_limit.lua"), Long.class);
     private final StringRedisTemplate redisTemplate;
 
     public boolean allow(Long playerId) {
         String key = "chat:limit:" + playerId;
-        String value = redisTemplate.opsForValue().get(key);
-        int count = value == null ? 0 : Integer.parseInt(value);
-        if (count >= 5) {
-            return false;
-        }
-        // TODO Lv 19: 횟수 확인부터 최초 만료 설정까지 원자적으로 실행합니다.
-        Long updated = redisTemplate.opsForValue().increment(key);
-        if (updated == 1L) {
-            redisTemplate.expire(key, Duration.ofSeconds(10));
-        }
-        return true;
+        Long result = redisTemplate.execute(
+                rateLimitScript,
+                List.of(key),
+                "5",   // ARGV[1]: 최대 허용 횟수
+                "10"   // ARGV[2]: 만료 시간(초)
+        );
+        return result != null && result == 1L;
     }
 }
